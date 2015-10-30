@@ -1,22 +1,21 @@
-#define _CRT_SECURE_NO_WARNINGS
 #include "debug.h"
 
-#include "ftp.h"
-#include "errors.h"
 #include <WS2tcpip.h>
 #include <stdio.h>
 
-#define BUFFER_SIZE 2048
+#include "ftp.h"
+#include "errors.h"
 
+#define BUFFER_SIZE 2048
 struct WSAData		wsa_data;
 const char			*ANON_USERNAME = "anonymous";
 const char			*ANON_PASSWORD = "cft@c.com";
 
 void append_string(char **str, char *app) {
 	char	*tmp;
-	int		app_len = strlen(app);
-	int		str_len = 0;
-	int		tmp_len = 0;
+	size_t	app_len = strlen(app);
+	size_t	str_len = 0;
+	size_t  tmp_len = 0;
 
 	if (*str == NULL) {
 		*str = (char*)malloc(app_len + 1);
@@ -37,46 +36,6 @@ void append_string(char **str, char *app) {
 		strcpy(*str, tmp);
 		free(tmp);
 	}
-}
-
-void resolve_pasv_response(char *pasv, char *addr, int *port) {
-	char	*addr_start;
-	char	*token;
-
-	addr_start = strstr(pasv, "(") + 1;
-	token = strtok(addr_start, ",");
-	
-	addr[0] = '\0';
-	for (int i = 0; i < 4; i++) {
-		strcat(addr, token);
-
-		if(i < 3)
-			strcat(addr, ".");
-
-		token = strtok(NULL, ",");
-	}
-
-	*port += atoi(token) * 256;
-	token = strtok(NULL, ",");
-	*port += atoi(token);
-}
-
-int recv_all(SOCKET socket, char *buffer, int buffer_size, char **output) {
-	int total = 0;
-	int recvd = 0;
-
-	do {
-		recvd = recv(socket, buffer, buffer_size, 0);
-
-		if (recvd == SOCKET_ERROR)
-			return -1;
-
-		total += recvd;
-		buffer[recvd] = '\0';
-		append_string(output, buffer);
-	} while (buffer[recvd - 2] != '\r' && buffer[recvd - 1] != '\n');
-
-	return total;
 }
 
 void ftp_init(void) {
@@ -161,7 +120,7 @@ int ftp_login(struct ftp_connection *connection, char *username, char *password)
 	pass = (password != NULL) ? password : ANON_PASSWORD;
 
 	send(connection->socket, "USER ", 5, 0);
-	send(connection->socket, user, strlen(user), 0);
+	send(connection->socket, user, (int) strlen(user), 0);
 	send(connection->socket, "\r\n", 2, 0);
 
 	recvd = recv(connection->socket, buffer, BUFFER_SIZE - 1, 0);
@@ -171,7 +130,7 @@ int ftp_login(struct ftp_connection *connection, char *username, char *password)
 		return FTP_PROTO_LOGIN;
 
 	send(connection->socket, "PASS ", 5, 0);
-	send(connection->socket, pass, strlen(pass), 0);
+	send(connection->socket, pass, (int) strlen(pass), 0);
 	send(connection->socket, "\r\n", 2, 0);
 
 	recvd = recv(connection->socket, buffer, BUFFER_SIZE - 1, 0);
@@ -183,63 +142,26 @@ int ftp_login(struct ftp_connection *connection, char *username, char *password)
 	return 0;
 }
 
-int ftp_quit(struct ftp_connection *connection) {
-	char	buffer[BUFFER_SIZE];
-	int		recvd;
+void _resolve_pasv_response(char *pasv, char *addr, int *port) {
+	char	*addr_start;
+	char	*token;
 
-	send(connection->socket, "QUIT\r\n", 6, 0);
+	addr_start = strstr(pasv, "(") + 1;
+	token = strtok(addr_start, ",");
 
-	Sleep(200);
+	addr[0] = '\0';
+	for (int i = 0; i < 4; i++) {
+		strcat(addr, token);
 
-	do {
-		recvd = recv(connection->socket, buffer, BUFFER_SIZE - 1, 0);
-	} while (recv < 0);
+		if (i < 3)
+			strcat(addr, ".");
 
-	buffer[recvd] = '\0';
-
-	if (strstr(buffer, "221") == NULL)
-		return FTP_PROTO_QUIT;
-
-	return 0;
-}
-
-int ftp_cmd(struct ftp_connection *connection, char *cmd) {
-	send(connection->socket, cmd, strlen(cmd) - 1, 0);
-	send(connection->socket, "\r\n", 2, 0);
-
-	return 0;
-}
-
-int _ftp_recv(SOCKET socket, char **output) {
-	char	*buffer = (char*)malloc(BUFFER_SIZE);
-	int		recvd = 0;
-
-	recvd = recv_all(socket, buffer, BUFFER_SIZE - 1, output);
-	SAFE_FREE(buffer);
-
-	return recvd;
-}
-
-int ftp_recv(struct ftp_connection *connection, char **output) {
-	return _ftp_recv(connection->socket, output);
-}
-
-int ftp_recv_pasv(struct ftp_connection *connection, char **output) {
-	char	buffer[BUFFER_SIZE];
-	long	total = 0;
-	int		recvd;
-
-	while(1) {
-		recvd = recv(connection->passive_socket, buffer, BUFFER_SIZE - 1, 0);
-
-		if (recvd <= 0)
-			break;
-
-		buffer[recvd] = '\0';
-		printf(buffer);
+		token = strtok(NULL, ",");
 	}
 
-	return 0;
+	*port += atoi(token) * 256;
+	token = strtok(NULL, ",");
+	*port += atoi(token);
 }
 
 int ftp_passive(struct ftp_connection *connection, char *pasv_response) {
@@ -248,7 +170,7 @@ int ftp_passive(struct ftp_connection *connection, char *pasv_response) {
 	int					port = 0;
 	struct sockaddr_in	sock_addr = { 0 };
 
-	resolve_pasv_response(pasv_response, addr, &port);
+	_resolve_pasv_response(pasv_response, addr, &port);
 	
 	inet_pton(connection->hints.ai_family, addr, &(sock_addr.sin_addr.S_un.S_addr));
 	sock_addr.sin_family = connection->hints.ai_family;
@@ -268,22 +190,16 @@ int ftp_passive(struct ftp_connection *connection, char *pasv_response) {
 	return 0;
 }
 
-int ftp_passive_close(struct ftp_connection *connection, HANDLE *handle) {
-	closesocket(connection->passive_socket);
-	connection->passive_socket = SOCKET_ERROR;
-	WSACloseEvent(*handle);
-	*handle = INVALID_HANDLE_VALUE;
-
-	return 0;
-}
-
 DWORD WINAPI ftp_pasv_recv(void *args) {
 	HANDLE					event;
 	struct ftp_connection	*connection;
+	FILE					*data_output;
 	int						recvd = 0;
 	char					buffer[BUFFER_SIZE];
 
-	connection = (struct ftp_connection*) args;
+	connection = (struct ftp_connection*) ((void**)args)[0];
+	data_output = (FILE*)((void**)args)[1];
+
 	event = WSACreateEvent();
 	WSAEventSelect(connection->passive_socket, event, FD_READ | FD_CLOSE);
 
@@ -292,7 +208,7 @@ DWORD WINAPI ftp_pasv_recv(void *args) {
 			recvd = recv(connection->passive_socket, buffer, BUFFER_SIZE - 1, 0);
 			if (recvd > 0) {
 				buffer[recvd] = '\0';
-				printf(buffer);
+				fprintf(data_output, buffer);
 			}
 
 			if (recvd != BUFFER_SIZE - 1)
@@ -310,12 +226,15 @@ DWORD WINAPI ftp_pasv_recv(void *args) {
 	return 0;
 }
 
-int ftp_cmd2(struct ftp_connection *connection, char *cmd, char **output) {
+int ftp_send_cmd(struct ftp_connection *connection, char *cmd, FILE *cmd_output, FILE *data_output) {
+	HANDLE	thread;
+	void	*thread_args[2];
+	char	*output = NULL;
 	char	buffer[BUFFER_SIZE];
 	int		recvd = 0;
 	HANDLE  event = WSACreateEvent();
 
-	send(connection->socket, cmd, strlen(cmd) - 1, 0);
+	send(connection->socket, cmd, (int) strlen(cmd) - 1, 0);
 	send(connection->socket, "\r\n", 2, 0);
 
 	WSAEventSelect(connection->socket, event, FD_READ | FD_CLOSE);
@@ -324,39 +243,43 @@ int ftp_cmd2(struct ftp_connection *connection, char *cmd, char **output) {
 			recvd = recv(connection->socket, buffer, BUFFER_SIZE - 1, 0);
 			if(recvd > 0) {
 				buffer[recvd] = '\0';
-				append_string(output, buffer);
+				append_string(&output, buffer);
 
 				if (buffer[recvd - 2] == '\r' && buffer[recvd - 1] == '\n')
 					break;
 			}
 		}
 
-		printf(*output);
+		fprintf(cmd_output, output);
 
-		if (strncmp(*output, "227", 3) == 0) {
-			ftp_passive(connection, *output);
+		if (strncmp(output, "227", 3) == 0) {
+			ftp_passive(connection, output);
 		}
 
-		else if(strncmp(*output, "150", 3) == 0) {
-			HANDLE thread = CreateThread(NULL, 0, ftp_pasv_recv, (void*)connection, 0, NULL);
+		else if(strncmp(output, "150", 3) == 0) {
+			thread_args[0] = (void*)connection;
+			thread_args[1] = (void*)data_output;
+
+			thread = CreateThread(NULL, 0, ftp_pasv_recv, thread_args, 0, NULL);
 			if(thread) {
 				if(WaitForSingleObject(event, INFINITE) == WAIT_OBJECT_0) {
-					SAFE_FREE(*output);
+					SAFE_FREE(output);
 
 					while (1) {
 						recvd = recv(connection->socket, buffer, BUFFER_SIZE - 1, 0);
 						if (recvd > 0) {
 							buffer[recvd] = '\0';
-							append_string(output, buffer);
+							append_string(&output, buffer);
 
 							if (buffer[recvd - 2] == '\r' && buffer[recvd - 1] == '\n')
 								break;
 						}
 					}
-					printf(*output);
+					fprintf(cmd_output, output);
 				}
 			}
 		}
+		SAFE_FREE(output);
 	}
 	else
 		printf("timeout\n");

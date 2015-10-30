@@ -1,4 +1,3 @@
-#define _CRT_SECURE_NO_WARNINGS
 #include "debug.h"
 
 #include <stdio.h>
@@ -10,16 +9,14 @@
 #define BUFFER_SIZE 2048
 #define INPUT_BUFFER_SIZE 512
 
-void parse_cmd(int *exit, struct ftp_connection *connection);
 void print_help(void);
-int parse_host_port_str(char *str, char **hostname, int *port);
+int _parse_host_port(char *str, char **hostname, int *port);
 
 int main(int argc, char **argv)
 {
 	struct ftp_connection	*connection = NULL;
 	char					*hello_msg = NULL;
-	char					*cmd_output = NULL;
-	int						ret = 0;
+	FILE					*data_output;
 	int						exit = 0;
 
 	char					*hostname = NULL;
@@ -28,7 +25,8 @@ int main(int argc, char **argv)
 	char					*password = NULL;
 
 	char					input_buffer[INPUT_BUFFER_SIZE];
-	DWORD					input_read = 0;
+	char					file_path[INPUT_BUFFER_SIZE];
+	FILE					*file = NULL;
 
 	if(argc != 2 && argc != 4) {
 		print_help();
@@ -43,7 +41,7 @@ int main(int argc, char **argv)
 
 	ftp_init();
 
-	CHECK_ERROR(parse_host_port_str(argv[1], &hostname, &port));
+	CHECK_ERROR(_parse_host_port(argv[1], &hostname, &port));
 
 	printf("Connecting to host: '%s' at port: '%d'...\n", hostname, port);
 	CHECK_ERROR(ftp_connect(&connection, hostname, port));
@@ -57,13 +55,34 @@ int main(int argc, char **argv)
 
 	while(1) {
 		fgets(input_buffer, INPUT_BUFFER_SIZE, stdin);
-		ftp_cmd2(connection, input_buffer, &cmd_output);
 
-		if (cmd_output != NULL) {
-			SAFE_FREE(cmd_output);
+		// TODO: retr i upload osobne funkcje
+
+		if(_strnicmp(input_buffer, "quit", 4) == 0) {
+			exit = 1;
+		}
+		else if(_strnicmp(input_buffer, "retr", 4) == 0) {
+			printf("Enter local path:\n");
+
+			fgets(file_path, INPUT_BUFFER_SIZE, stdin);
+			file_path[strlen(file_path) - 1] = '\0';
+			file = fopen(file_path, "w");
+			if (file == NULL)
+				printf("Cannot open '%s' to write\n", file_path);
+		}
+		else if (_strnicmp(input_buffer, "nie wiem", 4) == 0) {
+			printf("Enter remote path: ");
 		}
 		
-		if (_strnicmp(input_buffer, "quit", 4) == 0)
+		data_output = (file == NULL) ? stdout : file;
+		ftp_send_cmd(connection, input_buffer, stdout, data_output);
+
+		if (file != NULL) {
+			fclose(file);
+			file = NULL;
+		}
+		
+		if (exit)
 			break;
 	}
 
@@ -74,7 +93,6 @@ exit:
 	SAFE_FREE(username);
 	SAFE_FREE(password);
 	SAFE_FREE(hello_msg);
-	SAFE_FREE(cmd_output);
 
 	system("pause"); 
 #ifdef _DEBUG
@@ -83,7 +101,7 @@ exit:
 	return 0;
 }
 
-int parse_host_port_str(char *str, char **hostname, int *port) {
+int _parse_host_port(char *str, char **hostname, int *port) {
 	int		hostname_len = 0;
 	char	*colon_position;
 
