@@ -19,5 +19,6 @@ void ftp_connection_free(struct ftp_connection **_connection);
 int ftp_connect(struct ftp_connection **connection, char *hostname, int port);
 int ftp_hello(struct ftp_connection *connection, char **hello);
 int ftp_login(struct ftp_connection *connection, char *username, char *password);
-int ftp_send_cmd(struct ftp_connection *connection, char *cmd, FILE *cmd_output, FILE *data_output);
+int ftp_send_cmd(struct ftp_connection *connection, char *cmd, FILE *cmd_output, FILE *data_output, char cut_newline);
+int ftp_retr(struct ftp_connection *connection, char *remote_path, char *local_path);
 int ftp_passive(struct ftp_connection *connection, char *pasv_response);

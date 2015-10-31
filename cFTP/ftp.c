@@ -223,18 +223,23 @@ DWORD WINAPI ftp_pasv_recv(void *args) {
 	else
 		printf("passive timeout\n");
 
+	WSACloseEvent(event);
 	return 0;
 }
 
-int ftp_send_cmd(struct ftp_connection *connection, char *cmd, FILE *cmd_output, FILE *data_output) {
+int ftp_send_cmd(struct ftp_connection *connection, char *cmd, FILE *cmd_output, FILE *data_output, char cut_newline) {
 	HANDLE	thread;
 	void	*thread_args[2];
 	char	*output = NULL;
 	char	buffer[BUFFER_SIZE];
 	int		recvd = 0;
 	HANDLE  event = WSACreateEvent();
+	int		len;
 
-	send(connection->socket, cmd, (int) strlen(cmd) - 1, 0);
+	len = (int)strlen(cmd);
+	len -= (cut_newline) ? 1 : 0;
+
+	send(connection->socket, cmd, len, 0);
 	send(connection->socket, "\r\n", 2, 0);
 
 	WSAEventSelect(connection->socket, event, FD_READ | FD_CLOSE);
@@ -283,6 +288,90 @@ int ftp_send_cmd(struct ftp_connection *connection, char *cmd, FILE *cmd_output,
 	}
 	else
 		printf("timeout\n");
-	
+
+	WSACloseEvent(event);
+	return 0;
+}
+
+int ftp_retr(struct ftp_connection* connection, char* remote_path, char *local_path) {
+	char			buffer[BUFFER_SIZE];
+	char			s_file_size[64];
+	unsigned long	file_size;
+	unsigned long	offset = 0;
+	FILE			*tmp_file;
+	FILE			*output;
+	HANDLE			event, data_event;
+	int				recvd;
+	char			*cmd_output = NULL;
+
+	output = fopen(local_path, "w");
+	if(output == NULL) {
+		printf("Cannot open '%s' to write\n", local_path);
+		return -1;
+	}
+
+	event = WSACreateEvent();
+	tmp_file = tmpfile();
+
+	ftp_send_cmd(connection, "type i", stdout, stdout, 0);
+	send(connection->socket, "size ", 5, 0);
+	ftp_send_cmd(connection, remote_path, tmp_file, tmp_file, 0);
+
+	rewind(tmp_file);
+	fgets(s_file_size, 64, tmp_file);
+	fclose(tmp_file);
+	s_file_size[strlen(s_file_size) - 2] = '\0';
+	file_size = atol(s_file_size + 4);
+
+	printf("Downloading file '%s' size: %lu bytes\n", remote_path, file_size);
+
+	ftp_send_cmd(connection, "PASV", stdout, stdout, 0);
+	send(connection->socket, "retr ", 5, 0);
+	send(connection->socket, remote_path, (int) strlen(remote_path), 0);
+	send(connection->socket, "\r\n", 2, 0);
+
+	WSAEventSelect(connection->socket, event, FD_READ | FD_CLOSE);
+	if (WaitForSingleObject(event, 2500) == WAIT_OBJECT_0) {
+		while (1) {
+			recvd = recv(connection->socket, buffer, BUFFER_SIZE - 1, 0);
+			if (recvd > 0) {
+				buffer[recvd] = '\0';
+				append_string(&cmd_output, buffer);
+
+				if (buffer[recvd - 2] == '\r' && buffer[recvd - 1] == '\n')
+					break;
+			}
+		}
+		
+		if(strncmp(buffer, "150", 3) == 0) {
+			data_event = WSACreateEvent();
+			WSAEventSelect(connection->passive_socket, data_event, FD_READ | FD_CLOSE);
+
+			if (WaitForSingleObject(data_event, 2500) == WAIT_OBJECT_0) {
+				while (offset < file_size) {
+					recvd = recv(connection->passive_socket, buffer, BUFFER_SIZE, 0);
+
+					if (recvd > 0) {
+						offset += recvd;
+						fwrite(buffer, sizeof(char), recvd, output);
+					}
+				}
+
+				printf("File download complete\n");
+			}
+			else
+				printf("Data timeout\n");
+
+			WSACloseEvent(data_event);
+		}
+		else {
+			printf("Server unexpected response while downloading file\n");
+		}
+	}
+	else
+		printf("timeout\n");
+
+	fclose(output);
+	WSACloseEvent(event);
 	return 0;
 }

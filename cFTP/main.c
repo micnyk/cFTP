@@ -16,7 +16,6 @@ int main(int argc, char **argv)
 {
 	struct ftp_connection	*connection = NULL;
 	char					*hello_msg = NULL;
-	FILE					*data_output;
 	int						exit = 0;
 
 	char					*hostname = NULL;
@@ -56,26 +55,25 @@ int main(int argc, char **argv)
 	while(1) {
 		fgets(input_buffer, INPUT_BUFFER_SIZE, stdin);
 
-		// TODO: retr i upload osobne funkcje
-
 		if(_strnicmp(input_buffer, "quit", 4) == 0) {
 			exit = 1;
 		}
 		else if(_strnicmp(input_buffer, "retr", 4) == 0) {
+			input_buffer[strlen(input_buffer) - 1] = '\0';
+
 			printf("Enter local path:\n");
 
-			fgets(file_path, INPUT_BUFFER_SIZE, stdin);
+			fgets(file_path, BUFFER_SIZE, stdin);
 			file_path[strlen(file_path) - 1] = '\0';
-			file = fopen(file_path, "w");
-			if (file == NULL)
-				printf("Cannot open '%s' to write\n", file_path);
+
+			ftp_retr(connection, input_buffer + 5, file_path);
 		}
 		else if (_strnicmp(input_buffer, "nie wiem", 4) == 0) {
 			printf("Enter remote path: ");
 		}
-		
-		data_output = (file == NULL) ? stdout : file;
-		ftp_send_cmd(connection, input_buffer, stdout, data_output);
+		else {
+			ftp_send_cmd(connection, input_buffer, stdout, stdout, 1);
+		}
 
 		if (file != NULL) {
 			fclose(file);
