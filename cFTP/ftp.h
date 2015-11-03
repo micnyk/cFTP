@@ -4,7 +4,7 @@
 
 #define PORT_CHAR_COUNT 6
 
-void append_string(char **str, char *app);
+void _append_string(char **str, char *app);
 
 struct ftp_connection
 {
@@ -15,7 +15,7 @@ struct ftp_connection
 
 void ftp_init(void);
 void ftp_cleanup(void);
-void ftp_connection_free(struct ftp_connection **_connection);
+void ftp_disconnect(struct ftp_connection *connection);
 int ftp_connect(struct ftp_connection **connection, char *hostname, int port);
 int ftp_hello(struct ftp_connection *connection, char **hello);
 int ftp_login(struct ftp_connection *connection, char *username, char *password);

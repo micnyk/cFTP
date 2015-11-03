@@ -85,7 +85,7 @@ int main(int argc, char **argv)
 	}
 
 exit:
-	ftp_connection_free(&connection);
+	ftp_disconnect(connection);
 	ftp_cleanup();
 	SAFE_FREE(hostname);
 	SAFE_FREE(username);
@@ -106,7 +106,7 @@ int _parse_host_port(char *str, char **hostname, int *port) {
 	colon_position = strstr(str, ":");
 
 	if(colon_position == NULL) {
-		return HOST_PORT_INVALID_FORMAT;
+		return ERR_HOSTPORT_INVALID_FORMAT;
 	}
 
 	hostname_len = (int)(colon_position - str);
