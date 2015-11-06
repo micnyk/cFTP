@@ -25,14 +25,15 @@ int main(int argc, char **argv)
 
 	char					input_buffer[INPUT_BUFFER_SIZE];
 	char					file_path[INPUT_BUFFER_SIZE];
-	FILE					*file = NULL;
 
+	// Check if there is proper number of arguments
 	if(argc != 2 && argc != 4) {
 		print_help();
 		system("pause");
 		return 0;
 	}
 
+	// If there are 4 arguments- use username and password
 	if(argc == 4) {
 		username = argv[2];
 		password = argv[3];
@@ -53,11 +54,14 @@ int main(int argc, char **argv)
 
 
 	while(1) {
+		// Read command line input
 		fgets(input_buffer, INPUT_BUFFER_SIZE, stdin);
 
 		if(_strnicmp(input_buffer, "quit", 4) == 0) {
 			exit = 1;
 		}
+
+		//  RETR command - download file
 		else if(_strnicmp(input_buffer, "retr", 4) == 0) {
 			input_buffer[strlen(input_buffer) - 1] = '\0';
 
@@ -66,20 +70,25 @@ int main(int argc, char **argv)
 			fgets(file_path, BUFFER_SIZE, stdin);
 			file_path[strlen(file_path) - 1] = '\0';
 
-			ftp_retr(connection, input_buffer + 5, file_path);
+			CHECK_ERROR(ftp_retr(connection, input_buffer + 5, file_path));
 		}
-		else if (_strnicmp(input_buffer, "nie wiem", 4) == 0) {
-			printf("Enter remote path: ");
+
+		//  STOR command - upload file
+		else if (_strnicmp(input_buffer, "stor", 4) == 0) {
+			input_buffer[strlen(input_buffer) - 1] = '\0';
+			printf("Enter local path: ");
+
+			fgets(file_path, BUFFER_SIZE, stdin);
+			file_path[strlen(file_path) - 1] = '\0';
+
+			CHECK_ERROR(ftp_stor(connection, file_path, input_buffer + 5));
 		}
+
+		// Send raw command
 		else {
 			ftp_send_cmd(connection, input_buffer, stdout, stdout, 1);
 		}
-
-		if (file != NULL) {
-			fclose(file);
-			file = NULL;
-		}
-		
+	
 		if (exit)
 			break;
 	}
