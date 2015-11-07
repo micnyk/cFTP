@@ -17,6 +17,7 @@ enum CFTP_ERRORS
 	ERR_NET_SOCK_TIMEOUT = 7,
 	ERR_IO_FILE_OPEN = 8,
 	ERR_FTP_UNEXPECTED = 9,
+	ERR_FTP_FILE_NO_EXISTS = 10
 };
 
 const char *error_desc(int error);

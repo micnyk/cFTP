@@ -97,8 +97,6 @@ exit:
 	ftp_disconnect(connection);
 	ftp_cleanup();
 	SAFE_FREE(hostname);
-	SAFE_FREE(username);
-	SAFE_FREE(password);
 	SAFE_FREE(hello_msg);
 
 	system("pause"); 

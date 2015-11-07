@@ -12,8 +12,9 @@ static const char *errors[] = {
 	"Socket timeout",
 	"Cannot open local file",
 	"Server unexpected response",
+	"Remote file does not exist"
 };
-int errors_len = 10;
+int errors_len = 11;
 
 const char *error_desc(int error) {
 	if (error < errors_len)

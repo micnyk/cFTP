@@ -354,18 +354,25 @@ int ftp_send_cmd(struct ftp_connection *connection, char *cmd, FILE *cmd_output,
 			// Wait for server response or thread finish
 			wait_result = WaitForMultipleObjects(2, handles_array, FALSE, INFINITE);
 
-			// If there is a server response, terminate thread
+			// If there is a server response, terminate thread (something probably went wrong)
 			if (wait_result == WAIT_OBJECT_0 + 1)
 				TerminateThread(thread, 0);
+
+			// Close passive mode connection
+			closesocket(connection->passive_socket);
+			connection->passive_socket = INVALID_SOCKET;
 
 			// Receive the response
 			if (_recv_response(connection, &output) > 0)
 				fprintf(cmd_output, output);
 			else
 				fprintf(cmd_output, "Transfer completed\n");
+
 		}
 		WSACloseEvent(event);
 	}
+
+	SAFE_FREE(output);
 	return 0;
 }
 
@@ -382,16 +389,9 @@ int ftp_retr(struct ftp_connection* connection, char* remote_path, char *local_p
 	char			*cmd_output = NULL;
 	int				ret = 0;
 
-	// Try to open local file
-	output = fopen(local_path, "w");
-	if (output == NULL);
-		return ERR_IO_FILE_OPEN;
-
 	event = WSACreateEvent();
 	tmp_file = tmpfile();
 
-	// Switch to binary mode
-	ftp_send_cmd(connection, "type i", stdout, stdout, 0);
 	// Get the size of the file to download, save it to temporary file
 	send(connection->socket, "size ", 5, 0);
 	ftp_send_cmd(connection, remote_path, tmp_file, tmp_file, 0);
@@ -405,8 +405,16 @@ int ftp_retr(struct ftp_connection* connection, char* remote_path, char *local_p
 	// Read the file size (first 4 characters are always '213 '
 	file_size = atol(s_file_size + 4);
 
+	// Try to open local file
+	output = fopen(local_path, "wb");
+	if (output == NULL)
+		return ERR_IO_FILE_OPEN;
+
 	// Print the information
 	printf("Downloading file '%s' size: %lu bytes\n", remote_path, file_size);
+
+	// Switch to binary mode
+	ftp_send_cmd(connection, "type i", stdout, stdout, 0);
 
 	// Enter passive mode
 	ftp_send_cmd(connection, "PASV", stdout, stdout, 0);
@@ -416,86 +424,133 @@ int ftp_retr(struct ftp_connection* connection, char* remote_path, char *local_p
 	send(connection->socket, remote_path, (int)strlen(remote_path), 0);
 	send(connection->socket, "\r\n", 2, 0);
 
-	WSAEventSelect(connection->socket, event, FD_READ | FD_CLOSE);
-	if (WaitForSingleObject(event, DEFAULT_TIMEOUT) == WAIT_OBJECT_0) {
-		// Receive the response
-		while (1) {
-			recvd = recv(connection->socket, buffer, BUFFER_SIZE - 1, 0);
-			if (recvd > 0) {
-				buffer[recvd] = '\0';
-				_append_string(&cmd_output, buffer);
-
-				if (buffer[recvd - 2] == '\r' && buffer[recvd - 1] == '\n')
-					break;
-			}
-		}
-
-		// 150- Data is ready to transfer
-		if (strncmp(buffer, "150", 3) == 0) {
-			data_event = WSACreateEvent();
-			WSAEventSelect(connection->passive_socket, data_event, FD_READ | FD_CLOSE);
-
-			if (WaitForSingleObject(data_event, DEFAULT_TIMEOUT) == WAIT_OBJECT_0) {
-				// Receive the data
-				while (offset < file_size) {
-					recvd = recv(connection->passive_socket, buffer, BUFFER_SIZE, 0);
-
-					if (recvd > 0) {
-						offset += recvd;
-						fwrite(buffer, sizeof(char), recvd, output);
-					}
-				}
-
-				WSACloseEvent(data_event);
-				printf("File download complete\n");
-			}
-			else
-				ret = ERR_NET_SOCK_TIMEOUT;
-		}
-		else
-			ret = ERR_FTP_UNEXPECTED;
+	// Receive the response
+	if (_recv_response(connection, &cmd_output) <= 0) {
+		SAFE_FREE(cmd_output);
+		return ERR_FTP_UNEXPECTED;
 	}
-	else
-		ret = ERR_NET_SOCK_TIMEOUT;
 
-	fclose(output);
-	WSACloseEvent(event);
+	// 150- Data is ready to transfer
+	if (strncmp(cmd_output, "150", 3) == 0) {
+		data_event = WSACreateEvent();
+		WSAEventSelect(connection->passive_socket, data_event, FD_READ | FD_CLOSE);
 
-	return ret;
+		if (WaitForSingleObject(data_event, DEFAULT_TIMEOUT) != WAIT_OBJECT_0) {
+			closesocket(connection->passive_socket);
+			connection->passive_socket = INVALID_SOCKET;
+			SAFE_FREE(cmd_output);
+			return ERR_NET_SOCK_TIMEOUT;
+		}
+
+		// Receive the file in passive mode
+		while (offset < file_size) {
+			recvd = recv(connection->passive_socket, buffer, BUFFER_SIZE, 0);
+
+			if (recvd > 0) {
+				offset += recvd;
+				fwrite(buffer, sizeof(char), recvd, output);
+			}
+		}
+		fclose(output);
+		
+		WSACloseEvent(data_event);
+		closesocket(connection->passive_socket);
+		connection->passive_socket = INVALID_SOCKET;
+
+		SAFE_FREE(cmd_output);
+
+		if (_recv_response(connection, &cmd_output) > 0)
+			printf(cmd_output);
+		else
+			printf("File download complete\n");
+	}
+
+	// '550' - file not found
+	else if(strncmp(cmd_output, "550", 3) == 0) {
+		printf(cmd_output);
+	}
+	
+	SAFE_FREE(cmd_output);
+	return 0;
 }
 
 int ftp_stor(struct ftp_connection *connection, char *local_path, char *remote_path) {
 	HANDLE		event;
 	char		buffer[BUFFER_SIZE];
 	char		*cmd_output = NULL;
-	int			recvd;
+	FILE		*file;
+	long		offset = 0;
+	long		total;
+	int			sent;
 
 	event = WSACreateEvent();
 	WSAEventSelect(connection->socket, event, FD_READ | FD_CLOSE);
 
+	// Enter passive and binary mode
 	ftp_send_cmd(connection, "PASV", stdout, stdout, 0);
 	ftp_send_cmd(connection, "TYPE I", stdout, stdout, 0);
 		
+	// Send 'STOR <remote_path>' command
 	send(connection->socket, "STOR ", 5, 0);
 	send(connection->socket, remote_path, (int)strlen(remote_path), 0);
 	send(connection->socket, "\r\n", 2, 0);
 
-	if (WaitForSingleObject(event, DEFAULT_TIMEOUT) != WAIT_OBJECT_0)
-		return ERR_NET_SOCK_TIMEOUT;
-
-	while(1) {
-		recvd = recv(connection->socket, buffer, BUFFER_SIZE, 0);
-
-		if(recvd > 0) {
-			_append_string(&cmd_output, buffer);
-			if (buffer[recvd - 2] == '\r' && buffer[recvd - 1] == '\n')
-				break;
-		}
+	// Get the response
+	if(_recv_response(connection, &cmd_output) <= 0) {
+		SAFE_FREE(cmd_output);
+		return ERR_FTP_UNEXPECTED;
 	}
 
 	printf(cmd_output);
 
-	SAFE_FREE(cmd_output);
+	if(strncmp(cmd_output, "150", 3) != 0) {
+		SAFE_FREE(cmd_output);
+		return ERR_FTP_UNEXPECTED;
+	}
+
+	// Open local file
+	file = fopen(local_path, "rb");
+	if(file == NULL) {
+		closesocket(connection->passive_socket);
+		connection->passive_socket = INVALID_SOCKET;
+		SAFE_FREE(cmd_output);
+		return ERR_IO_FILE_OPEN;
+	}
+
+	// Get the file size
+	fseek(file, 0, SEEK_END);
+	total = ftell(file);
+	fseek(file, 0, SEEK_SET);
+
+	// Send the file
+	while(offset < total) {
+		fread(buffer, sizeof(char), BUFFER_SIZE, file);
+		sent = send(connection->passive_socket, buffer, BUFFER_SIZE, 0);
+
+		if (sent > 0)
+			offset += sent;
+	}
+
+	// Close passive mode connection after file transfer
+	closesocket(connection->passive_socket);
+	connection->passive_socket = INVALID_SOCKET;
+
 	WSACloseEvent(event);
+	SAFE_FREE(cmd_output);
+	
+	if(_recv_response(connection, &cmd_output) <= 0) {
+		SAFE_FREE(cmd_output);
+		return ERR_FTP_UNEXPECTED;
+	}
+
+	printf(cmd_output);
+
+	// '226' - transfer complete
+	if(strncmp(cmd_output, "226", 3) != 0) {
+		SAFE_FREE(cmd_output);
+		return ERR_FTP_UNEXPECTED;
+	}
+
+	SAFE_FREE(cmd_output);
 	return 0;
 }
