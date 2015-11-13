@@ -43,29 +43,40 @@ int main(int argc, char **argv)
 
 	CHECK_ERROR(_parse_host_port(argv[1], &hostname, &port));
 
-	printf("Connecting to host: '%s' at port: '%d'...\n", hostname, port);
+	printf("Connecting to host: '%s' at port: '%d'\n", hostname, port);
 	CHECK_ERROR(ftp_connect(&connection, hostname, port));
+	SAFE_FREE(hostname);
+
 	CHECK_ERROR(ftp_hello(connection, &hello_msg));
-	printf("Connected, server hello message:\n%s", hello_msg);
+	printf("Connected, server hello message:\n%s\n", hello_msg);
+	SAFE_FREE(hello_msg);
 
 	printf("Logging in as '%s'...\n", (username == NULL) ? "anonymous" : username);
 	CHECK_ERROR(ftp_login(connection, username, password));
-	printf("Logged in\n");
+	printf("Logged in\n\n");
 
 
 	while(1) {
 		// Read command line input
+		printf("> ");
 		fgets(input_buffer, INPUT_BUFFER_SIZE, stdin);
 
-		if(_strnicmp(input_buffer, "quit", 4) == 0) {
-			exit = 1;
+		// HELP command
+		if(_strnicmp(input_buffer, "help", 4) == 0) {
+			print_help();
+		}
+
+		// QUIT command
+		else if(_strnicmp(input_buffer, "quit", 4) == 0) {
+			ftp_send_cmd(connection, "QUIT", stdout, stdout, 0);
+			break;
 		}
 
 		//  RETR command - download file
 		else if(_strnicmp(input_buffer, "retr", 4) == 0) {
 			input_buffer[strlen(input_buffer) - 1] = '\0';
 
-			printf("Enter local path:\n");
+			printf("Enter local filename:\n> ");
 
 			fgets(file_path, BUFFER_SIZE, stdin);
 			file_path[strlen(file_path) - 1] = '\0';
@@ -76,7 +87,7 @@ int main(int argc, char **argv)
 		//  STOR command - upload file
 		else if (_strnicmp(input_buffer, "stor", 4) == 0) {
 			input_buffer[strlen(input_buffer) - 1] = '\0';
-			printf("Enter local path: ");
+			printf("Enter local filename:\n> ");
 
 			fgets(file_path, BUFFER_SIZE, stdin);
 			file_path[strlen(file_path) - 1] = '\0';
@@ -84,21 +95,15 @@ int main(int argc, char **argv)
 			CHECK_ERROR(ftp_stor(connection, file_path, input_buffer + 5));
 		}
 
-		// Send raw command
+		// Not implemented commands
 		else {
 			ftp_send_cmd(connection, input_buffer, stdout, stdout, 1);
 		}
-	
-		if (exit)
-			break;
 	}
 
 exit:
 	ftp_disconnect(connection);
 	ftp_cleanup();
-	SAFE_FREE(hostname);
-	SAFE_FREE(hello_msg);
-
 	system("pause"); 
 #ifdef _DEBUG
 	_CrtDumpMemoryLeaks();
@@ -129,5 +134,10 @@ int _parse_host_port(char *str, char **hostname, int *port) {
 
 void print_help(void) {
 	printf("Usage:\n"
-		"cftp <hostname:port> [ <username> ] [ <password> ]\n");
+		"cftp <hostname:port> [ <username> ] [ <password> ]\n\n"
+		"pwd\t\t\t\tPrint current directory path\n"
+		"cwd <path>\t\t\tChange current directory\n"
+		"list\t\t\t\tList files in current directory\n"
+		"stor <remote-filename>\t\tUpload file\n"
+		"retr <remote-filename>\t\tDownload file\n");
 }
