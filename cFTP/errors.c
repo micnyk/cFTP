@@ -1,7 +1,7 @@
 #include <math.h>
 #include "errors.h"
 
-static const char *errors[] = {
+static const char* errors[] = {
 	"Unknown error",
 	"Invalid format of hostname and port argument, should be <hostname:port>",
 	"Hostname not found",
@@ -16,7 +16,7 @@ static const char *errors[] = {
 };
 int errors_len = 11;
 
-const char *error_desc(int error) {
+const char* error_desc(int error) {
 	if (error < errors_len)
 		return errors[error];
 

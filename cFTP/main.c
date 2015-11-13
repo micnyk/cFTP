@@ -10,31 +10,30 @@
 #define INPUT_BUFFER_SIZE 512
 
 void print_help(void);
-int _parse_host_port(char *str, char **hostname, int *port);
+int _parse_host_port(char* str, char** hostname, int* port);
 
-int main(int argc, char **argv)
-{
-	struct ftp_connection	*connection = NULL;
-	char					*hello_msg = NULL;
-	int						exit = 0;
+int main(int argc, char** argv) {
+	struct ftp_connection* connection = NULL;
+	char* hello_msg = NULL;
+	int exit = 0;
 
-	char					*hostname = NULL;
-	int						port = 0;
-	char					*username = NULL;
-	char					*password = NULL;
+	char* hostname = NULL;
+	int port = 0;
+	char* username = NULL;
+	char* password = NULL;
 
-	char					input_buffer[INPUT_BUFFER_SIZE];
-	char					file_path[INPUT_BUFFER_SIZE];
+	char input_buffer[INPUT_BUFFER_SIZE];
+	char file_path[INPUT_BUFFER_SIZE];
 
 	// Check if there is proper number of arguments
-	if(argc != 2 && argc != 4) {
+	if (argc != 2 && argc != 4) {
 		print_help();
 		system("pause");
 		return 0;
 	}
 
 	// If there are 4 arguments- use username and password
-	if(argc == 4) {
+	if (argc == 4) {
 		username = argv[2];
 		password = argv[3];
 	}
@@ -56,24 +55,24 @@ int main(int argc, char **argv)
 	printf("Logged in\n\n");
 
 
-	while(1) {
+	while (1) {
 		// Read command line input
 		printf("> ");
 		fgets(input_buffer, INPUT_BUFFER_SIZE, stdin);
 
 		// HELP command
-		if(_strnicmp(input_buffer, "help", 4) == 0) {
+		if (_strnicmp(input_buffer, "help", 4) == 0) {
 			print_help();
 		}
 
 		// QUIT command
-		else if(_strnicmp(input_buffer, "quit", 4) == 0) {
+		else if (_strnicmp(input_buffer, "quit", 4) == 0) {
 			ftp_send_cmd(connection, "QUIT", stdout, stdout, 0);
 			break;
 		}
 
 		//  RETR command - download file
-		else if(_strnicmp(input_buffer, "retr", 4) == 0) {
+		else if (_strnicmp(input_buffer, "retr", 4) == 0) {
 			input_buffer[strlen(input_buffer) - 1] = '\0';
 
 			printf("Enter local filename:\n> ");
@@ -104,20 +103,20 @@ int main(int argc, char **argv)
 exit:
 	ftp_disconnect(connection);
 	ftp_cleanup();
-	system("pause"); 
+	system("pause");
 #ifdef _DEBUG
 	_CrtDumpMemoryLeaks();
 #endif
 	return 0;
 }
 
-int _parse_host_port(char *str, char **hostname, int *port) {
-	int		hostname_len = 0;
-	char	*colon_position;
+int _parse_host_port(char* str, char** hostname, int* port) {
+	int hostname_len = 0;
+	char* colon_position;
 
 	colon_position = strstr(str, ":");
 
-	if(colon_position == NULL) {
+	if (colon_position == NULL) {
 		return ERR_HOSTPORT_INVALID_FORMAT;
 	}
 

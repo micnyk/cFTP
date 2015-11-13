@@ -20,7 +20,7 @@ enum CFTP_ERRORS
 	ERR_FTP_FILE_NO_EXISTS = 10
 };
 
-const char *error_desc(int error);
+const char* error_desc(int error);
 
 #define HANDLE_ERROR(v) \
 	printf("Error: %s\n", error_desc(v)); \

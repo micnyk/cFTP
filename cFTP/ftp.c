@@ -9,34 +9,34 @@
 #define BUFFER_SIZE 2048
 #define DEFAULT_TIMEOUT 2500
 
-struct WSAData		wsa_data;
-const char			*ANON_USERNAME = "anonymous";
-const char			*ANON_PASSWORD = "cft@c.com";
+struct WSAData wsa_data;
+const char* ANON_USERNAME = "anonymous";
+const char* ANON_PASSWORD = "cft@c.com";
 
 // Append string to another string
-void _append_string(char **output, char *append) {
-	char	*tmp;
-	size_t	app_len = strlen(append);
-	size_t	str_len = 0;
-	size_t  tmp_len = 0;
+void _append_string(char** output, char* append) {
+	char* tmp;
+	size_t app_len = strlen(append);
+	size_t str_len = 0;
+	size_t tmp_len = 0;
 
 	if (*output == NULL) { // If output string is NULL
 		*output = (char*)malloc(app_len + 1); // Allocate memory
 		strcpy(*output, append); // Copy the append string to output
 	}
 	else {
-		str_len = strlen(*output); 
+		str_len = strlen(*output);
 		tmp_len = str_len + app_len + 1;
 
 		tmp = (char*)malloc(tmp_len); // Temporary string storing both output and append string
 		tmp[0] = '\0';
 
 		// Copy strings to temp string
-		strcat(tmp, *output); 
+		strcat(tmp, *output);
 		strcat(tmp, append);
 
 		free(*output);
-		*output = (char*)malloc(tmp_len); 
+		*output = (char*)malloc(tmp_len);
 		strcpy(*output, tmp); // Copy temp to output
 		free(tmp);
 	}
@@ -44,11 +44,11 @@ void _append_string(char **output, char *append) {
 
 
 // Receive server response
-long _recv_response(struct ftp_connection *connection, char **cmd_output) {
-	HANDLE		event;
-	static char	buffer[BUFFER_SIZE];
-	int			recvd;
-	long		total = 0;
+long _recv_response(struct ftp_connection* connection, char** cmd_output) {
+	HANDLE event;
+	static char buffer[BUFFER_SIZE];
+	int recvd;
+	long total = 0;
 
 	// Create socket read event
 	event = WSACreateEvent();
@@ -82,9 +82,9 @@ long _recv_response(struct ftp_connection *connection, char **cmd_output) {
 // PASV response has format '227 [...] (a, b, c, d, e, f)' where:
 // IP address is a.b.c.d
 // Port number is e*256+f
-void _resolve_pasv_response(char *pasv, char *addr, int *port) {
-	char	*addr_start;
-	char	*token;
+void _resolve_pasv_response(char* pasv, char* addr, int* port) {
+	char* addr_start;
+	char* token;
 
 	addr[0] = '\0';
 	// Find position of the address sequence
@@ -120,7 +120,7 @@ void ftp_cleanup(void) {
 }
 
 // Disconnect and release all resources used to establish connection
-void ftp_disconnect(struct ftp_connection *connection) {
+void ftp_disconnect(struct ftp_connection* connection) {
 
 	if (connection == NULL)
 		return;
@@ -136,10 +136,10 @@ void ftp_disconnect(struct ftp_connection *connection) {
 }
 
 // Connect to server
-int ftp_connect(struct ftp_connection **connection, char *hostname, int port) {
-	struct ftp_connection	*conn;
-	int						result;
-	char					port_str[PORT_CHAR_COUNT];
+int ftp_connect(struct ftp_connection** connection, char* hostname, int port) {
+	struct ftp_connection* conn;
+	int result;
+	char port_str[PORT_CHAR_COUNT];
 
 	_itoa(port, port_str, 10);
 
@@ -148,9 +148,9 @@ int ftp_connect(struct ftp_connection **connection, char *hostname, int port) {
 
 	ZeroMemory(conn, sizeof(struct ftp_connection));
 	conn->passive_socket = SOCKET_ERROR;
-	conn->hints.ai_family = AF_INET;
+	conn->hints.ai_family = AF_INET ;
 	conn->hints.ai_protocol = IPPROTO_TCP;
-	conn->hints.ai_socktype = SOCK_STREAM;
+	conn->hints.ai_socktype = SOCK_STREAM ;
 
 	// Resolve hostname
 	result = getaddrinfo(hostname, port_str, &conn->hints, &conn->addr);
@@ -173,10 +173,10 @@ int ftp_connect(struct ftp_connection **connection, char *hostname, int port) {
 }
 
 // Receive server hello message
-int ftp_hello(struct ftp_connection *connection, char **hello) {
+int ftp_hello(struct ftp_connection* connection, char** hello) {
 	// Receive the hello message
 	if (_recv_response(connection, hello) <= 0)
-		return ERR_FTP_HELLO_NOT_RECVD;  
+		return ERR_FTP_HELLO_NOT_RECVD;
 
 	// Hello message should start with '220'
 	if (strncmp(*hello, "220", 3) != 0)
@@ -186,10 +186,10 @@ int ftp_hello(struct ftp_connection *connection, char **hello) {
 }
 
 // Login using given username and password or as anonymous user
-int ftp_login(struct ftp_connection *connection, char *username, char *password) {
-	char	*user;
-	char	*pass;
-	char	*response = NULL;
+int ftp_login(struct ftp_connection* connection, char* username, char* password) {
+	char* user;
+	char* pass;
+	char* response = NULL;
 
 	// Check if username and password are given, if not use anonymous
 	user = (username != NULL) ? username : ANON_USERNAME;
@@ -201,7 +201,7 @@ int ftp_login(struct ftp_connection *connection, char *username, char *password)
 	send(connection->socket, "\r\n", 2, 0);
 
 	// Receive the response
-	if(_recv_response(connection, &response) <= 0) {
+	if (_recv_response(connection, &response) <= 0) {
 		SAFE_FREE(response);
 		return ERR_FTP_LOGIN;
 	}
@@ -235,11 +235,11 @@ int ftp_login(struct ftp_connection *connection, char *username, char *password)
 }
 
 // Connects to the passive mode socket
-int ftp_passive(struct ftp_connection *connection, char *pasv_response) {
-	int					result = 0;
-	char				addr[20];
-	int					port = 0;
-	struct sockaddr_in	sock_addr = { 0 };
+int ftp_passive(struct ftp_connection* connection, char* pasv_response) {
+	int result = 0;
+	char addr[20];
+	int port = 0;
+	struct sockaddr_in sock_addr = {0};
 
 	// Resolve PASV command response to get IP address and port number
 	_resolve_pasv_response(pasv_response, addr, &port);
@@ -252,28 +252,28 @@ int ftp_passive(struct ftp_connection *connection, char *pasv_response) {
 	if (connection->passive_socket != SOCKET_ERROR)
 		closesocket(connection->passive_socket);
 
-connection->passive_socket = socket(connection->hints.ai_family, connection->hints.ai_socktype, connection->hints.ai_protocol);
-if (connection->passive_socket == INVALID_SOCKET)
-return ERR_NET_SOCK_CREATE;
+	connection->passive_socket = socket(connection->hints.ai_family, connection->hints.ai_socktype, connection->hints.ai_protocol);
+	if (connection->passive_socket == INVALID_SOCKET)
+		return ERR_NET_SOCK_CREATE;
 
-// Try to connect
-result = connect(connection->passive_socket, (struct sockaddr*) &sock_addr, sizeof(sock_addr));
-if (result == SOCKET_ERROR)
-return ERR_NET_CONNECT;
+	// Try to connect
+	result = connect(connection->passive_socket, (struct sockaddr*) &sock_addr, sizeof(sock_addr));
+	if (result == SOCKET_ERROR)
+		return ERR_NET_CONNECT;
 
-return 0;
+	return 0;
 }
 
 // Receives data in passive mode
 // Used when size of data is unknown
-DWORD WINAPI _ftp_pasv_recv(void *args) {
-	HANDLE					event;
-	struct ftp_connection	*connection;
-	FILE					*data_output;
-	int						recvd = 0;
-	char					buffer[BUFFER_SIZE];
-	int						attemps = 0;
-	static const int		max_attemps = 5;
+DWORD WINAPI _ftp_pasv_recv(void* args) {
+	HANDLE event;
+	struct ftp_connection* connection;
+	FILE* data_output;
+	int recvd = 0;
+	char buffer[BUFFER_SIZE];
+	int attemps = 0;
+	static const int max_attemps = 5;
 
 	// Arguments table should be: [0] - pointer to ftp_connection struct, [1] - pointer to output FILE (stream)
 	connection = (struct ftp_connection*) ((void**)args)[0];
@@ -302,14 +302,14 @@ DWORD WINAPI _ftp_pasv_recv(void *args) {
 }
 
 // Sends raw FTP command
-int ftp_send_cmd(struct ftp_connection *connection, char *cmd, FILE *cmd_output, FILE *data_output, char cut_newline) {
-	HANDLE	thread;
-	HANDLE	event;
-	HANDLE  handles_array[2];
-	DWORD   wait_result;
-	void	*thread_args[2];
-	int		cmd_len;
-	char    *output = NULL;
+int ftp_send_cmd(struct ftp_connection* connection, char* cmd, FILE* cmd_output, FILE* data_output, char cut_newline) {
+	HANDLE thread;
+	HANDLE event;
+	HANDLE handles_array[2];
+	DWORD wait_result;
+	void* thread_args[2];
+	int cmd_len;
+	char* output = NULL;
 
 	// If cutting newline char, substract 1 from command lenght
 	cmd_len = (int)strlen(cmd);
@@ -377,17 +377,17 @@ int ftp_send_cmd(struct ftp_connection *connection, char *cmd, FILE *cmd_output,
 }
 
 // FTP RETR command implementation
-int ftp_retr(struct ftp_connection* connection, char* remote_path, char *local_path) {
-	char			buffer[BUFFER_SIZE];
-	char			s_file_size[64];
-	unsigned long	file_size;
-	unsigned long	offset = 0;
-	FILE			*tmp_file;
-	FILE			*output;
-	HANDLE			event, data_event;
-	int				recvd;
-	char			*cmd_output = NULL;
-	int				ret = 0;
+int ftp_retr(struct ftp_connection* connection, char* remote_path, char* local_path) {
+	char buffer[BUFFER_SIZE];
+	char s_file_size[64];
+	unsigned long file_size;
+	unsigned long offset = 0;
+	FILE* tmp_file;
+	FILE* output;
+	HANDLE event, data_event;
+	int recvd;
+	char* cmd_output = NULL;
+	int ret = 0;
 
 	event = WSACreateEvent();
 	tmp_file = tmpfile();
@@ -452,7 +452,7 @@ int ftp_retr(struct ftp_connection* connection, char* remote_path, char *local_p
 			}
 		}
 		fclose(output);
-		
+
 		WSACloseEvent(data_event);
 		closesocket(connection->passive_socket);
 		connection->passive_socket = INVALID_SOCKET;
@@ -466,22 +466,22 @@ int ftp_retr(struct ftp_connection* connection, char* remote_path, char *local_p
 	}
 
 	// '550' - file not found
-	else if(strncmp(cmd_output, "550", 3) == 0) {
+	else if (strncmp(cmd_output, "550", 3) == 0) {
 		printf(cmd_output);
 	}
-	
+
 	SAFE_FREE(cmd_output);
 	return 0;
 }
 
-int ftp_stor(struct ftp_connection *connection, char *local_path, char *remote_path) {
-	HANDLE		event;
-	char		buffer[BUFFER_SIZE];
-	char		*cmd_output = NULL;
-	FILE		*file;
-	long		offset = 0;
-	long		total;
-	int			sent;
+int ftp_stor(struct ftp_connection* connection, char* local_path, char* remote_path) {
+	HANDLE event;
+	char buffer[BUFFER_SIZE];
+	char* cmd_output = NULL;
+	FILE* file;
+	long offset = 0;
+	long total;
+	int sent;
 
 	event = WSACreateEvent();
 	WSAEventSelect(connection->socket, event, FD_READ | FD_CLOSE);
@@ -489,28 +489,28 @@ int ftp_stor(struct ftp_connection *connection, char *local_path, char *remote_p
 	// Enter passive and binary mode
 	ftp_send_cmd(connection, "PASV", stdout, stdout, 0);
 	ftp_send_cmd(connection, "TYPE I", stdout, stdout, 0);
-		
+
 	// Send 'STOR <remote_path>' command
 	send(connection->socket, "STOR ", 5, 0);
 	send(connection->socket, remote_path, (int)strlen(remote_path), 0);
 	send(connection->socket, "\r\n", 2, 0);
 
 	// Get the response
-	if(_recv_response(connection, &cmd_output) <= 0) {
+	if (_recv_response(connection, &cmd_output) <= 0) {
 		SAFE_FREE(cmd_output);
 		return ERR_FTP_UNEXPECTED;
 	}
 
 	printf(cmd_output);
 
-	if(strncmp(cmd_output, "150", 3) != 0) {
+	if (strncmp(cmd_output, "150", 3) != 0) {
 		SAFE_FREE(cmd_output);
 		return ERR_FTP_UNEXPECTED;
 	}
 
 	// Open local file
 	file = fopen(local_path, "rb");
-	if(file == NULL) {
+	if (file == NULL) {
 		closesocket(connection->passive_socket);
 		connection->passive_socket = INVALID_SOCKET;
 		SAFE_FREE(cmd_output);
@@ -523,7 +523,7 @@ int ftp_stor(struct ftp_connection *connection, char *local_path, char *remote_p
 	fseek(file, 0, SEEK_SET);
 
 	// Send the file
-	while(offset < total) {
+	while (offset < total) {
 		fread(buffer, sizeof(char), BUFFER_SIZE, file);
 		sent = send(connection->passive_socket, buffer, BUFFER_SIZE, 0);
 
@@ -537,8 +537,8 @@ int ftp_stor(struct ftp_connection *connection, char *local_path, char *remote_p
 
 	WSACloseEvent(event);
 	SAFE_FREE(cmd_output);
-	
-	if(_recv_response(connection, &cmd_output) <= 0) {
+
+	if (_recv_response(connection, &cmd_output) <= 0) {
 		SAFE_FREE(cmd_output);
 		return ERR_FTP_UNEXPECTED;
 	}
@@ -546,7 +546,7 @@ int ftp_stor(struct ftp_connection *connection, char *local_path, char *remote_p
 	printf(cmd_output);
 
 	// '226' - transfer complete
-	if(strncmp(cmd_output, "226", 3) != 0) {
+	if (strncmp(cmd_output, "226", 3) != 0) {
 		SAFE_FREE(cmd_output);
 		return ERR_FTP_UNEXPECTED;
 	}
